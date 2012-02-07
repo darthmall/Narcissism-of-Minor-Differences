@@ -1,19 +1,11 @@
-CREATE TABLE IF NOT EXISTS search_abc (
-  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-  tunename TEXT NOT NULL,
-  tunelink TEXT NOT NULL,
-  keysig TEXT NOT NULL,
-  tunetype TEXT NOT NULL,
-  tunedata TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS similarity (
-  tuneid INTEGER,
-  comparedtoid INTEGER,
-  ncd REAL,
+  tuneid INTEGER NOT NULL,
+  comparedtoid INTEGER NOT NULL,
+  ncd FLOAT,
   hamming INTEGER,
   levenshtein INTEGER,
+  lcs VARCHAR(128),
   PRIMARY KEY(tuneid, comparedtoid),
-  FOREIGN KEY(tuneid) REFERENCES search_abc(id),
-  FOREIGN KEY(comparedtoid) REFERENCES search_abc(id)
-);
+  FOREIGN KEY(tuneid) REFERENCES search_abc(idx) ON DELETE CASCADE,
+  FOREIGN KEY(comparedtoid) REFERENCES search_abc(idx) ON DELETE CASCADE
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;

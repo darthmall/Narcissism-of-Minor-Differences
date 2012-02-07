@@ -1,27 +1,13 @@
 #!/usr/bin/env python
 
-from tempfile import NamedTemporaryFile
-import Levenshtein, sqlite3, sys, zlib
+import Levenshtein, MySQLdb, sys, zlib
 
-NCD_TABLE = """CREATE TABLE IF NOT EXISTS similarity (
-  tuneid INTEGER,
-  comparedtoid INTEGER,
-  ncd REAL,
-  hamming INTEGER,
-  levenshtein INTEGER,
-  PRIMARY KEY(tuneid, comparedtoid),
-  FOREIGN KEY(tuneid) REFERENCES search_abc(id),
-  FOREIGN KEY(comparedtoid) REFERENCES search_abc(id)
-)"""
+INSERT = """INSERT INTO similarity VALUES (%s, %s, %s, %s, %s, %s)"""
 
-INSERT = """INSERT INTO similarity VALUES (?, ?, ?, ?, ?)"""
-
-SELECT = """SELECT x.id, y.id, x.tunedata, y.tunedata
+SELECT = """SELECT x.idx, y.idx, x.tunedata, y.tunedata
   FROM search_abc AS x
-    JOIN search_abc AS y ON x.id != y.id
-  WHERE x.tunetype='polka'"""
-
-SELECT_START = """SELECT max(tuneid) FROM ncd"""
+    JOIN search_abc AS y ON x.idx != y.idx
+  WHERE x.tunetype='jig' AND y.tunetype='jig'"""
 
 def ncd(x, y):
     try:
@@ -39,30 +25,39 @@ def hamming(x, y):
 
     return sum(c1 != c2 for c1, c2 in zip(x, y))
 
+# Taken from http://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Longest_common_substring#Python
+def LongestCommonSubstring(S1, S2):
+    M = [[0]*(1+len(S2)) for i in xrange(1+len(S1))]
+    longest, x_longest = 0, 0
+    for x in xrange(1,1+len(S1)):
+        for y in xrange(1,1+len(S2)):
+            if S1[x-1] == S2[y-1]:
+                M[x][y] = M[x-1][y-1] + 1
+                if M[x][y]>longest:
+                    longest = M[x][y]
+                    x_longest  = x
+            else:
+                M[x][y] = 0
+    return S1[x_longest-longest: x_longest]
+
 if __name__ == '__main__':
-    conn = sqlite3.connect(sys.argv[1])
-    c = conn.cursor()
+    conn = MySQLdb.connect(user='root', db=sys.argv[1])
+    c1 = conn.cursor()
+    c2 = conn.cursor()
 
-    with NamedTemporaryFile() as tmpdb:
-        tmp = sqlite3.connect(tmpdb.name)
-        ctmp = tmp.cursor()
-        ctmp.execute(NCD_TABLE)
-
-        c.execute(SELECT)
-
-        for tuneid, comparedtoid, tunedata, comparedtodata in c:
-            print "%d | %d" % (tuneid, comparedtoid)
-            ctmp.execute(INSERT,
-                    (tuneid,
-                        comparedtoid,
-                        ncd(tunedata, comparedtodata),
-                        hamming(tunedata, comparedtodata),
-                        Levenshtein.distance(tunedata, comparedtodata)))
-
-        ctmp.execute('select * from similarity')
-        for row in ctmp:
-            c.execute(INSERT, row)
+    c1.execute(SELECT)
+    for tuneid, comparedtoid, tunedata, comparedtodata in c1:
+        print "%d | %d" % (tuneid, comparedtoid)
+        c2.execute(INSERT,
+                (tuneid,
+                    comparedtoid,
+                    ncd(tunedata, comparedtodata),
+                    hamming(tunedata, comparedtodata),
+                    Levenshtein.distance(tunedata, comparedtodata),
+                    LongestCommonSubstring(tunedata, comparedtodata)))
 
     print 'Done.'
     conn.commit()
-    c.close()
+    c1.close()
+    c2.close()
+    conn.close()
